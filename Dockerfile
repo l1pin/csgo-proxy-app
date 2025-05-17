@@ -45,7 +45,7 @@ RUN echo '#!/bin/bash\nservice apache2 start\nnode server.js' > /start.sh && \
     chmod +x /start.sh
 
 # Порты для Node.js и Apache
-EXPOSE 3000 10000
+EXPOSE 3000 8080
 
 # Запуск обоих сервисов
 CMD ["/start.sh"]
