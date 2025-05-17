@@ -1,8 +1,8 @@
 services:
   - type: web
-    name: php-csgo-app
+    name: csgo-proxy-app
     env: docker
     dockerfilePath: ./Dockerfile
     envVars:
       - key: PORT
-        value: 8080
+        value: 3000
