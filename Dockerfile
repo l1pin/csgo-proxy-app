@@ -23,24 +23,19 @@ RUN npm install
 COPY apache-config.conf /etc/apache2/sites-available/000-default.conf
 COPY ports.conf /etc/apache2/ports.conf
 
-# Создание индексного файла
-RUN echo '<?php header("Location: deab0093a0f4551414b49ba57151ae08.php"); ?>' > /var/www/html/index.php
-
-# Копирование файлов в директорию Apache
+# Настройка прав доступа
 RUN mkdir -p /var/www/html && \
     cp *.php /var/www/html/ || true && \
     cp *.html /var/www/html/ || true && \
     cp *.js /var/www/html/ || true && \
-    cp .htaccess /var/www/html/ || true
-
-# Настройка прав доступа
-RUN chown -R www-data:www-data /var/www/html && \
+    cp .htaccess /var/www/html/ || true && \
+    chown -R www-data:www-data /var/www/html && \
     chmod -R 755 /var/www/html && \
     mkdir -p /var/www/data && \
     chown -R www-data:www-data /var/www/data && \
     chmod -R 777 /var/www/data
 
-# Скрипт запуска для обоих сервисов
+# Создание скрипта запуска для обоих сервисов
 RUN echo '#!/bin/bash\nservice apache2 start\nnode server.js' > /start.sh && \
     chmod +x /start.sh
 
