@@ -19,49 +19,30 @@ COPY . .
 # Установка зависимостей Node.js
 RUN npm install
 
-# Создание конфигурации Apache
-RUN echo '<VirtualHost *:10000>
-    ServerName localhost
-    DocumentRoot /var/www/html
-    
-    <Directory /var/www/html>
-        Options Indexes FollowSymLinks
-        AllowOverride All
-        Require all granted
-    </Directory>
-    
-    ErrorLog ${APACHE_LOG_DIR}/error.log
-    CustomLog ${APACHE_LOG_DIR}/access.log combined
-</VirtualHost>' > /etc/apache2/sites-available/000-default.conf
-
-# Настройка порта Apache
-RUN echo 'Listen 10000' > /etc/apache2/ports.conf
+# Настройка Apache
+COPY apache-config.conf /etc/apache2/sites-available/000-default.conf
+COPY ports.conf /etc/apache2/ports.conf
 
 # Создание индексного файла
 RUN echo '<?php header("Location: deab0093a0f4551414b49ba57151ae08.php"); ?>' > /var/www/html/index.php
 
 # Копирование файлов в директорию Apache
-RUN cp *.php /var/www/html/
-RUN cp *.html /var/www/html/
-RUN cp *.js /var/www/html/
-COPY .htaccess /var/www/html/.htaccess
+RUN mkdir -p /var/www/html && \
+    cp *.php /var/www/html/ || true && \
+    cp *.html /var/www/html/ || true && \
+    cp *.js /var/www/html/ || true && \
+    cp .htaccess /var/www/html/ || true
 
 # Настройка прав доступа
-RUN chown -R www-data:www-data /var/www/html
-RUN chmod -R 755 /var/www/html
-
-# Директория для сохранения данных
-RUN mkdir -p /var/www/data
-RUN chown -R www-data:www-data /var/www/data
-RUN chmod -R 777 /var/www/data
+RUN chown -R www-data:www-data /var/www/html && \
+    chmod -R 755 /var/www/html && \
+    mkdir -p /var/www/data && \
+    chown -R www-data:www-data /var/www/data && \
+    chmod -R 777 /var/www/data
 
 # Скрипт запуска для обоих сервисов
-RUN echo '#!/bin/bash\n\
-service apache2 start\n\
-node server.js\n\
-' > /start.sh
-
-RUN chmod +x /start.sh
+RUN echo '#!/bin/bash\nservice apache2 start\nnode server.js' > /start.sh && \
+    chmod +x /start.sh
 
 # Порты для Node.js и Apache
 EXPOSE 3000 10000
