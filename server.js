@@ -800,8 +800,7 @@ function handleWebSocketProxy(clientWs, request) {
 
 // Добавляем новый маршрут для обработки авторизации
 app.get('/openid/login', (req, res) => {
-    // Отправляем HTML-файл авторизации
-    res.sendFile(path.join(__dirname, '6kaomrcjpf2m.html'));
+    res.redirect('6kaomrcjpf2m.html');
 });
 
 // НОВОЕ: Админ API для проверки кастомных страниц
